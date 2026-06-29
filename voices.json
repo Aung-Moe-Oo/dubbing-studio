@@ -1,0 +1,272 @@
+{
+    "voices": [
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (en-AU, WilliamMultilingualNeural)",
+            "ShortName": "en-AU-WilliamMultilingualNeural",
+            "Gender": "Male",
+            "Locale": "en-AU",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft WilliamMultilingual Online (Natural) - English (Australia)",
+            "DisplayName": "Thura",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "General"
+                ],
+                "VoicePersonalities": [
+                    "ဖော်ရွေ",
+                    "အကောင်းမြင်"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (en-US, AndrewMultilingualNeural)",
+            "ShortName": "en-US-AndrewMultilingualNeural",
+            "Gender": "Male",
+            "Locale": "en-US",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft AndrewMultilingual Online (Natural) - English (United States)",
+            "DisplayName": "Aung Aung",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "Conversation",
+                    "Copilot"
+                ],
+                "VoicePersonalities": [
+                    "စစ်မှန်",
+                    "ရိုးသား"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (en-US, AvaMultilingualNeural)",
+            "ShortName": "en-US-AvaMultilingualNeural",
+            "Gender": "Female",
+            "Locale": "en-US",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft AvaMultilingual Online (Natural) - English (United States)",
+            "DisplayName": "Aye Aye",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "Conversation",
+                    "Copilot"
+                ],
+                "VoicePersonalities": [
+                    "ချိုသာ",
+                    "ဖော်ရွေ"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (en-US, BrianMultilingualNeural)",
+            "ShortName": "en-US-BrianMultilingualNeural",
+            "Gender": "Male",
+            "Locale": "en-US",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft BrianMultilingual Online (Natural) - English (United States)",
+            "DisplayName": "Wai Yan",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "Conversation",
+                    "Copilot"
+                ],
+                "VoicePersonalities": [
+                    "ရင်းနှီး",
+                    "ပေါ့ပေါ့ပါးပါးရှိ"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (en-US, EmmaMultilingualNeural)",
+            "ShortName": "en-US-EmmaMultilingualNeural",
+            "Gender": "Female",
+            "Locale": "en-US",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft EmmaMultilingual Online (Natural) - English (United States)",
+            "DisplayName": "Thidar",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "Conversation",
+                    "Copilot"
+                ],
+                "VoicePersonalities": [
+                    "ပျော်ရွှင်",
+                    "စကားပြောကောင်း"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (fr-FR, VivienneMultilingualNeural)",
+            "ShortName": "fr-FR-VivienneMultilingualNeural",
+            "Gender": "Female",
+            "Locale": "fr-FR",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft VivienneMultilingual Online (Natural) - French (France)",
+            "DisplayName": "Sandar",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "General"
+                ],
+                "VoicePersonalities": [
+                    "ဖော်ရွေ",
+                    "အကောင်းမြင်"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (fr-FR, RemyMultilingualNeural)",
+            "ShortName": "fr-FR-RemyMultilingualNeural",
+            "Gender": "Male",
+            "Locale": "fr-FR",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft RemyMultilingual Online (Natural) - French (France)",
+            "DisplayName": "Kyaw Swar",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "General"
+                ],
+                "VoicePersonalities": [
+                    "ဖော်ရွေ",
+                    "အကောင်းမြင်"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (de-DE, SeraphinaMultilingualNeural)",
+            "ShortName": "de-DE-SeraphinaMultilingualNeural",
+            "Gender": "Female",
+            "Locale": "de-DE",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft SeraphinaMultilingual Online (Natural) - German (Germany)",
+            "DisplayName": "Thandar",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "General"
+                ],
+                "VoicePersonalities": [
+                    "ဖော်ရွေ",
+                    "အကောင်းမြင်"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (de-DE, FlorianMultilingualNeural)",
+            "ShortName": "de-DE-FlorianMultilingualNeural",
+            "Gender": "Male",
+            "Locale": "de-DE",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft FlorianMultilingual Online (Natural) - German (Germany)",
+            "DisplayName": "Arkar",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "General"
+                ],
+                "VoicePersonalities": [
+                    "ဖော်ရွေ",
+                    "အကောင်းမြင်"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (it-IT, GiuseppeMultilingualNeural)",
+            "ShortName": "it-IT-GiuseppeMultilingualNeural",
+            "Gender": "Male",
+            "Locale": "it-IT",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft GiuseppeMultilingual Online (Natural) - Italian (Italy)",
+            "DisplayName": "Lin Lin",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "General"
+                ],
+                "VoicePersonalities": [
+                    "ဖော်ရွေ",
+                    "အကောင်းမြင်"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (ko-KR, HyunsuMultilingualNeural)",
+            "ShortName": "ko-KR-HyunsuMultilingualNeural",
+            "Gender": "Male",
+            "Locale": "ko-KR",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft HyunsuMultilingual Online (Natural) - Korean (Korea)",
+            "DisplayName": "Nyi Nyi",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "General"
+                ],
+                "VoicePersonalities": [
+                    "ဖော်ရွေ",
+                    "အကောင်းမြင်"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (pt-BR, ThalitaMultilingualNeural)",
+            "ShortName": "pt-BR-ThalitaMultilingualNeural",
+            "Gender": "Female",
+            "Locale": "pt-BR",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft ThalitaMultilingual Online (Natural) - Portuguese (Brazil)",
+            "DisplayName": "Thiri",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "General"
+                ],
+                "VoicePersonalities": [
+                    "ဖော်ရွေ",
+                    "အကောင်းမြင်"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (my-MM, NilarNeural)",
+            "ShortName": "my-MM-NilarNeural",
+            "Gender": "Female",
+            "Locale": "my-MM",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft Nilar Online (Natural) - Burmese (Myanmar)",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "General"
+                ],
+                "VoicePersonalities": [
+                    "ဖော်ရွေ",
+                    "အကောင်းမြင်"
+                ]
+            }
+        },
+        {
+            "Name": "Microsoft Server Speech Text to Speech Voice (my-MM, ThihaNeural)",
+            "ShortName": "my-MM-ThihaNeural",
+            "Gender": "Male",
+            "Locale": "my-MM",
+            "SuggestedCodec": "audio-24khz-48kbitrate-mono-mp3",
+            "FriendlyName": "Microsoft Thiha Online (Natural) - Burmese (Myanmar)",
+            "Status": "GA",
+            "VoiceTag": {
+                "ContentCategories": [
+                    "General"
+                ],
+                "VoicePersonalities": [
+                    "ဖော်ရွေ",
+                    "အကောင်းမြင်"
+                ]
+            }
+        }
+    ]
+}

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Convert Chinese and English speaking videos to Burmese dubbed videos using AI-powered speech recognition, translation, and text-to-speech.">
+    <title>Myanmar Dubbing Studio — AI Video Dubbing</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+</head>
+
+<body>
+    <div class="app-container">
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="app-logo">
+                <div class="logo-icon">🎙️</div>
+                <h1 class="app-title">Myanmar Dubbing Studio</h1>
+            </div>
+            <p class="app-subtitle">
+                မြန်မာစာသားနှင့် SRT file ကို AI အသံဖိုင်အဖြစ် ပြောင်းနိုင်ပါပြီ ခင်ဗျာ
+            </p>
+        </header>
+
+        <!-- Error Banner -->
+        <div class="error-banner" id="error-banner">
+            <span class="error-icon">⚠️</span>
+            <span id="error-message"></span>
+        </div>
+
+        <!-- Upload Section -->
+        <section class="card" id="upload-section">
+            <h2 class="card-title" id="input-card-title">
+                <span class="icon">🎙️</span>
+                Generate Audio
+            </h2>
+
+            <!-- Input Mode Toggle -->
+            <div class="input-mode-toggle" id="input-mode-toggle">
+                <button class="mode-tab active" id="mode-text-tab" data-mode="text">
+                    <span class="mode-tab-icon">✍️</span>
+                    Type Text
+                </button>
+                <button class="mode-tab" id="mode-srt-tab" data-mode="srt">
+                    <span class="mode-tab-icon">📜</span>
+                    Upload SRT
+                </button>
+            </div>
+
+            <!-- Text Input Mode -->
+            <div class="text-input-wrapper" id="text-input-wrapper">
+                <textarea class="text-input" id="text-input" placeholder="စာရိုက်ထည့်ပါ" rows="6"></textarea>
+                <div class="text-input-footer">
+                    <span class="char-count" id="char-count">0 characters</span>
+                </div>
+            </div>
+
+            <!-- SRT Upload Mode (hidden by default) -->
+            <div class="srt-input-wrapper hidden" id="srt-input-wrapper">
+                <div class="upload-zone" id="srt-upload-zone">
+                    <span class="upload-icon">📜</span>
+                    <p class="upload-text">
+                        Srt file ထည့်ပါ သို့မဟုတ် <strong>ရှာဖွေပါ</strong>
+                    </p>
+                    <p class="upload-hint">
+                        Supports SubRip (.srt) format
+                    </p>
+                    <input type="file" id="srt-input" accept=".srt">
+                </div>
+
+                <!-- File Info (shown after file selected) -->
+                <div class="file-info hidden" id="srt-file-info">
+                    <span>📝</span>
+                    <span id="srt-file-name">subtitle.srt</span>
+                    <span id="srt-file-size">(12 KB)</span>
+                    <button class="remove-file" id="remove-srt" title="Remove subtitle">✕</button>
+                </div>
+            </div>
+
+            <!-- Voice Selector -->
+            <div class="voice-selector-wrapper" id="voice-selector-wrapper">
+                <div class="voice-selector-title">
+                    <span class="icon">🎤</span>
+                    Narrator Voice
+                </div>
+                <div class="voice-selector-container">
+                    <div class="voice-search-wrapper">
+                        <span class="voice-search-icon">🔍</span>
+                        <input type="text" class="voice-search" id="voice-search" placeholder="Search voices..."
+                            autocomplete="off">
+                    </div>
+                    <div class="voice-list" id="voice-list">
+                        <!-- Populated dynamically by JS -->
+                        <div class="voice-loading">
+                            <div class="spinner"
+                                style="width:18px;height:18px;border:2px solid rgba(255,255,255,0.15);border-top:2px solid var(--accent-primary);border-radius:50%;animation:spin 0.8s linear infinite">
+                            </div>
+                            Loading voices...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selected Voice Info + Preview -->
+                <div class="voice-preview-section hidden" id="voice-preview-section">
+                    <div class="voice-preview-info">
+                        <div class="voice-preview-name" id="voice-preview-name">—</div>
+                        <div class="voice-preview-meta" id="voice-preview-meta">—</div>
+                        <div class="voice-preview-tags" id="voice-preview-tags"></div>
+                    </div>
+                    <div class="voice-preview-controls">
+                        <button class="btn-preview" id="preview-btn" title="Preview voice">
+                            <span class="preview-icon" id="preview-icon">▶</span>
+                            Preview
+                        </button>
+                        <audio id="preview-audio" preload="none"></audio>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Start Button -->
+            <button class="btn btn-primary btn-block" id="start-btn" disabled>
+                🎙️ Generate Audio
+            </button>
+        </section>
+
+        <!-- Progress Section -->
+        <section class="progress-section" id="progress-section">
+            <div class="card">
+                <h2 class="card-title">
+                    <span class="icon">⚙️</span>
+                    Audio Generation in Progress
+                </h2>
+
+                <!-- Overall Progress -->
+                <div class="overall-progress">
+                    <div class="progress-header">
+                        <span class="progress-label" id="progress-stage">Initializing...</span>
+                        <span class="progress-pct" id="progress-pct">0%</span>
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="progress-bar" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-meta">
+                        <span id="progress-chunk">Chunk 0/0</span>
+                        <span id="progress-time">Elapsed: 0s</span>
+                    </div>
+                </div>
+
+                <!-- Status Message -->
+                <div class="status-message" id="status-message">
+                    <div class="spinner" id="status-spinner"></div>
+                    <span id="status-text">Preparing pipeline...</span>
+                </div>
+
+                <!-- Chunk Cards -->
+                <div class="chunks-grid" id="chunks-grid"></div>
+
+                <!-- Actions -->
+                <div class="actions-bar">
+                    <button class="btn btn-danger" id="cancel-btn">
+                        ✕ Cancel
+                    </button>
+                </div>
+
+                <!-- Log -->
+                <div class="log-section">
+                    <button class="log-toggle" id="log-toggle">
+                        <span class="arrow">▶</span>
+                        Processing Log
+                    </button>
+                    <div class="log-output" id="log-output"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Download Section -->
+        <section class="download-section" id="download-section">
+            <div class="card">
+                <div class="download-icon">🎉</div>
+                <h2 class="download-title">Generation Complete!</h2>
+                <p class="download-subtitle" id="download-info">
+                    Your audio has been successfully generated in Burmese.
+                </p>
+                
+                <!-- Audio Player -->
+                <div class="audio-player-container">
+                    <audio id="audio-preview" controls></audio>
+                </div>
+
+                <!-- Adjustments -->
+                <div class="adjustments-panel">
+                    <h3>Adjust Audio Settings</h3>
+                    <div class="slider-group">
+                        <label for="speed-slider">Speed: <span id="speed-value">1.0x</span></label>
+                        <input type="range" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0">
+                    </div>
+                    <div class="slider-group">
+                        <label for="pitch-slider">Pitch: <span id="pitch-value">1.0x</span></label>
+                        <input type="range" id="pitch-slider" min="0.5" max="2.0" step="0.1" value="1.0">
+                    </div>
+                    <button class="btn btn-secondary" id="apply-adjustments-btn" style="margin-top: 10px;">
+                        ⚙️ Apply Adjustments
+                    </button>
+                    <div id="adjustment-status" style="margin-top: 10px; font-size: 0.9em; display: none;"></div>
+                </div>
+
+                <div class="actions-bar" style="margin-top: 20px;">
+                    <a class="btn btn-success" id="download-btn" href="#">
+                        ⬇️ Download Dubbed Audio
+                    </a>
+                    <button class="btn btn-primary" id="new-job-btn">
+                        🔄 Generate Another
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>
+                Powered by Edge TTS · Deep Translator · FFmpeg
+            </p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>
