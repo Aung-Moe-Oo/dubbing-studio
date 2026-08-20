@@ -47,6 +47,7 @@ jobs = {}           # job_id -> JobStatus
 pipelines = {}      # job_id -> DubbingPipeline
 job_queues = {}     # job_id -> Queue (for SSE events)
 job_threads = {}    # job_id -> Thread
+transcriptions = {} # job_id -> str (completed transcription text)
 
 
 def is_myanmar_combining(char):
@@ -287,9 +288,6 @@ def download_video(job_id):
     if status.stage != "done" or not status.output_file:
         return jsonify({"error": "Video not ready yet"}), 400
 
-    if not os.path.exists(status.output_file):
-        return jsonify({"error": "Output file not found"}), 404
-
     # Determine correct filename and mimetype based on output file extension
     output_ext = os.path.splitext(status.output_file)[1].lower()
     if output_ext == ".mp3":
@@ -299,12 +297,39 @@ def download_video(job_id):
         download_name = f"burmese_dubbed_{status.filename}"
         mimetype = "video/mp4"
 
-    return send_file(
-        status.output_file,
-        as_attachment=True,
-        download_name=download_name,
-        mimetype=mimetype
-    )
+    is_download = request.args.get("download") == "true"
+
+    if is_download:
+        if not os.path.exists(status.output_file):
+            return jsonify({"error": "Output file not found (might be already downloaded/cleaned up)"}), 404
+
+        import io
+        try:
+            with open(status.output_file, "rb") as f:
+                file_data = io.BytesIO(f.read())
+        except Exception as e:
+            logger.error(f"Failed to read output file into memory: {e}")
+            return jsonify({"error": f"Failed to read file: {str(e)}"}), 500
+
+        # Perform cleanup
+        cleanup_job_files(job_id)
+
+        # Serve from memory buffer
+        return send_file(
+            file_data,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype=mimetype
+        )
+    else:
+        if not os.path.exists(status.output_file):
+            return jsonify({"error": "Output file not found"}), 404
+
+        return send_file(
+            status.output_file,
+            as_attachment=False,
+            mimetype=mimetype
+        )
 
 
 @app.route("/api/adjust/<job_id>", methods=["POST"])
@@ -401,11 +426,53 @@ def list_jobs():
 @app.route("/api/cleanup/<job_id>", methods=["POST"])
 def cleanup_job(job_id):
     """Clean up temporary files for a completed job."""
-    pipeline = pipelines.get(job_id)
-    if pipeline:
-        pipeline.cleanup()
-        return jsonify({"message": "Cleaned up"})
-    return jsonify({"error": "Job not found"}), 404
+    cleanup_job_files(job_id)
+    return jsonify({"message": "Cleaned up"})
+
+
+def cleanup_job_files(job_id):
+    """Delete all temporary, output, and uploaded files associated with a job ID."""
+    logger.info(f"Cleaning up files for job {job_id}...")
+    import shutil
+
+    # 1. Clean up temp folder
+    temp_dir = os.path.join(config.TEMP_FOLDER, job_id)
+    if os.path.exists(temp_dir):
+        try:
+            shutil.rmtree(temp_dir)
+            logger.info(f"Deleted temp directory: {temp_dir}")
+        except Exception as e:
+            logger.error(f"Failed to delete temp directory {temp_dir}: {e}")
+
+    # 2. Clean up output files
+    if os.path.exists(config.OUTPUT_FOLDER):
+        try:
+            for filename in os.listdir(config.OUTPUT_FOLDER):
+                if job_id in filename:
+                    file_path = os.path.join(config.OUTPUT_FOLDER, filename)
+                    try:
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                            logger.info(f"Deleted output file: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to delete output file {file_path}: {e}")
+        except Exception as e:
+            logger.error(f"Failed to scan output folder: {e}")
+
+    # 3. Clean up uploaded files
+    if os.path.exists(config.UPLOAD_FOLDER):
+        try:
+            for filename in os.listdir(config.UPLOAD_FOLDER):
+                if job_id in filename:
+                    file_path = os.path.join(config.UPLOAD_FOLDER, filename)
+                    try:
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                            logger.info(f"Deleted uploaded file: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to delete uploaded file {file_path}: {e}")
+        except Exception as e:
+            logger.error(f"Failed to scan upload folder: {e}")
 
 
 @app.route("/api/voices")
@@ -645,7 +712,226 @@ def text_to_speech():
 
 
 # ============================================================================
-# Main
+# Audio Transcription
+# ============================================================================
+
+@app.route("/api/transcribe", methods=["POST"])
+def transcribe_audio():
+    """Upload an audio file and transcribe Burmese speech to text."""
+    if "audio" not in request.files:
+        return jsonify({"error": "No audio file provided"}), 400
+
+    file = request.files["audio"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in config.AUDIO_EXTENSIONS:
+        return jsonify({"error": f"Unsupported audio format '.{ext}'. Supported: {', '.join(sorted(config.AUDIO_EXTENSIONS))}"}), 400
+
+    job_id = str(uuid.uuid4())[:8]
+    saved_filename = f"{job_id}.{ext}"
+    audio_path = os.path.join(config.UPLOAD_FOLDER, saved_filename)
+    file.save(audio_path)
+
+    logger.info(f"Transcription upload: {file.filename} -> {audio_path}")
+
+    # Create SSE queue and start background thread
+    job_queues[job_id] = Queue()
+
+    def run_transcription_job():
+        queue = job_queues.get(job_id)
+        try:
+            import subprocess
+            from pydub import AudioSegment
+
+            # --- Detect duration ---
+            audio_seg = AudioSegment.from_file(audio_path)
+            duration_sec = len(audio_seg) / 1000.0
+            chunk_duration = config.TRANSCRIBE_CHUNK_SECONDS
+
+            # Determine chunks
+            if duration_sec > chunk_duration:
+                num_chunks = int(duration_sec // chunk_duration) + (1 if duration_sec % chunk_duration > 0 else 0)
+            else:
+                num_chunks = 1
+
+            status = JobStatus(
+                job_id=job_id,
+                filename=file.filename,
+                total_chunks=num_chunks,
+                start_time=time.time()
+            )
+            status.chunks = [ChunkStatus(index=i, total=num_chunks) for i in range(num_chunks)]
+            jobs[job_id] = status
+
+            status.stage = "processing"
+            status.message = f"Audio duration: {int(duration_sec)}s — splitting into {num_chunks} chunk(s)..."
+            status.overall_progress = 5.0
+            if queue:
+                queue.put(status_to_dict(status))
+
+            # --- Split audio into chunks if needed ---
+            chunk_dir = os.path.join(config.TEMP_FOLDER, job_id)
+            os.makedirs(chunk_dir, exist_ok=True)
+            chunk_paths = []
+
+            if num_chunks == 1:
+                chunk_paths.append(audio_path)
+            else:
+                for i in range(num_chunks):
+                    start_ms = i * chunk_duration * 1000
+                    end_ms = min((i + 1) * chunk_duration * 1000, len(audio_seg))
+                    chunk_seg = audio_seg[start_ms:end_ms]
+
+                    chunk_path = os.path.join(chunk_dir, f"chunk_{i:03d}.wav")
+                    chunk_seg.export(chunk_path, format="wav")
+                    chunk_paths.append(chunk_path)
+
+                    status.message = f"Exported chunk {i+1}/{num_chunks}..."
+                    status.overall_progress = 5.0 + (i / num_chunks) * 10.0
+                    if queue:
+                        queue.put(status_to_dict(status))
+
+            status.overall_progress = 15.0
+            status.message = "Loading Whisper model..."
+            if queue:
+                queue.put(status_to_dict(status))
+
+            # --- Load Whisper model ---
+            from faster_whisper import WhisperModel
+
+            device = config.WHISPER_DEVICE
+            compute_type = config.WHISPER_COMPUTE_TYPE
+            if device == "auto":
+                try:
+                    import torch
+                    device = "cuda" if torch.cuda.is_available() else "cpu"
+                except ImportError:
+                    device = "cpu"
+            if device == "cpu":
+                compute_type = "int8"
+
+            model = WhisperModel(
+                config.WHISPER_MODEL,
+                device=device,
+                compute_type=compute_type
+            )
+
+            status.overall_progress = 20.0
+            status.message = "Transcribing audio..."
+            if queue:
+                queue.put(status_to_dict(status))
+
+            # --- Transcribe each chunk ---
+            all_text_segments = []
+            for i, chunk_path in enumerate(chunk_paths):
+                if getattr(status, 'cancelled', False):
+                    raise Exception("Job cancelled by user")
+
+                status.current_chunk = i
+                status.chunks[i].stage = "transcribing"
+                status.chunks[i].message = "Transcribing..."
+                status.chunks[i].progress = 10.0
+
+                overall_pct = 20.0 + (i / num_chunks) * 70.0
+                status.overall_progress = round(overall_pct, 1)
+                status.message = f"Transcribing chunk {i+1} of {num_chunks}..."
+                if queue:
+                    queue.put(status_to_dict(status))
+
+                segments, info = model.transcribe(
+                    chunk_path,
+                    language="my",
+                    beam_size=5,
+                    vad_filter=True
+                )
+
+                chunk_text_parts = []
+                for segment in segments:
+                    chunk_text_parts.append(segment.text.strip())
+
+                chunk_text = " ".join(chunk_text_parts)
+                all_text_segments.append(chunk_text)
+
+                status.chunks[i].stage = "done"
+                status.chunks[i].progress = 100.0
+                status.chunks[i].message = f"Transcribed ({len(chunk_text)} chars)"
+                if queue:
+                    queue.put(status_to_dict(status))
+
+            # --- Combine all transcription text ---
+            full_text = "\n".join(all_text_segments).strip()
+            transcriptions[job_id] = full_text
+
+            # Save transcription to a text file
+            output_name = f"transcription_{job_id}.txt"
+            output_path = os.path.join(config.OUTPUT_FOLDER, output_name)
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(full_text)
+
+            status.stage = "done"
+            status.overall_progress = 100.0
+            status.message = f"Transcription complete! ({len(full_text)} characters)"
+            status.output_file = output_path
+            status.original_output_file = output_path
+            jobs[job_id] = status
+
+            if queue:
+                queue.put(status_to_dict(status))
+                queue.put("DONE")
+
+            logger.info(f"Transcription job {job_id} complete: {len(full_text)} chars")
+
+        except Exception as e:
+            logger.error(f"Transcription job {job_id} failed: {e}")
+            if job_id in jobs:
+                status = jobs[job_id]
+            else:
+                status = JobStatus(job_id=job_id, filename=file.filename)
+                jobs[job_id] = status
+            status.stage = "error"
+            status.error = str(e)
+            status.message = f"Error: {str(e)}"
+            if queue:
+                queue.put(status_to_dict(status))
+                queue.put("DONE")
+
+    thread = threading.Thread(target=run_transcription_job, daemon=True)
+    job_threads[job_id] = thread
+    thread.start()
+
+    return jsonify({
+        "job_id": job_id,
+        "filename": file.filename,
+        "message": "Transcription started",
+        "output_mode": "transcription"
+    })
+
+
+@app.route("/api/transcription/<job_id>")
+def get_transcription(job_id):
+    """Return the transcribed text for a completed job."""
+    if job_id in transcriptions:
+        return jsonify({
+            "job_id": job_id,
+            "text": transcriptions[job_id]
+        })
+
+    # Check if the text file exists on disk
+    output_path = os.path.join(config.OUTPUT_FOLDER, f"transcription_{job_id}.txt")
+    if os.path.exists(output_path):
+        with open(output_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        transcriptions[job_id] = text
+        return jsonify({
+            "job_id": job_id,
+            "text": text
+        })
+
+    return jsonify({"error": "Transcription not found"}), 404
+
+
 # ============================================================================
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@
         // Input Mode Toggle
         modeTextTab: document.getElementById('mode-text-tab'),
         modeSrtTab: document.getElementById('mode-srt-tab'),
+        modeTranscribeTab: document.getElementById('mode-transcribe-tab'),
 
         // Text Input
         textInputWrapper: document.getElementById('text-input-wrapper'),
@@ -34,7 +35,17 @@
         srtFileSize: document.getElementById('srt-file-size'),
         removeSrt: document.getElementById('remove-srt'),
 
+        // Audio Transcription Upload
+        transcribeInputWrapper: document.getElementById('transcribe-input-wrapper'),
+        audioUploadZone: document.getElementById('audio-upload-zone'),
+        audioInput: document.getElementById('audio-input'),
+        audioFileInfo: document.getElementById('audio-file-info'),
+        audioFileName: document.getElementById('audio-file-name'),
+        audioFileSize: document.getElementById('audio-file-size'),
+        removeAudio: document.getElementById('remove-audio'),
+
         // Voice Selector
+        voiceSelectorWrapper: document.getElementById('voice-selector-wrapper'),
         voiceSearch: document.getElementById('voice-search'),
         voiceList: document.getElementById('voice-list'),
         voicePreviewSection: document.getElementById('voice-preview-section'),
@@ -75,6 +86,15 @@
         applyAdjustmentsBtn: document.getElementById('apply-adjustments-btn'),
         adjustmentStatus: document.getElementById('adjustment-status'),
 
+        // Transcription Result
+        transcriptionResultSection: document.getElementById('transcription-result-section'),
+        transcriptionInfo: document.getElementById('transcription-info'),
+        transcriptionTextOutput: document.getElementById('transcription-text-output'),
+        transcriptionCharCount: document.getElementById('transcription-char-count'),
+        copyTranscriptionBtn: document.getElementById('copy-transcription-btn'),
+        downloadTranscriptionBtn: document.getElementById('download-transcription-btn'),
+        newTranscribeBtn: document.getElementById('new-transcribe-btn'),
+
         // Error
         errorBanner: document.getElementById('error-banner'),
         errorMessage: document.getElementById('error-message'),
@@ -84,13 +104,14 @@
     // State
     // ========================================================================
     let state = {
-        inputMode: 'text',      // 'text' or 'srt'
+        inputMode: 'text',      // 'text', 'srt', or 'transcribe'
         selectedSrtFile: null,
+        selectedAudioFile: null,
         currentJobId: null,
         eventSource: null,
         elapsedTimer: null,
         startTime: null,
-        outputMode: 'audio',
+        outputMode: 'audio',    // 'audio' or 'transcription'
         voices: [],
         selectedVoice: null,
         previewPlaying: false,
@@ -162,14 +183,21 @@
         // Update tabs
         DOM.modeTextTab.classList.toggle('active', mode === 'text');
         DOM.modeSrtTab.classList.toggle('active', mode === 'srt');
+        DOM.modeTranscribeTab.classList.toggle('active', mode === 'transcribe');
 
         // Show/hide panels
-        if (mode === 'text') {
-            DOM.textInputWrapper.classList.remove('hidden');
-            DOM.srtInputWrapper.classList.add('hidden');
+        DOM.textInputWrapper.classList.toggle('hidden', mode !== 'text');
+        DOM.srtInputWrapper.classList.toggle('hidden', mode !== 'srt');
+        DOM.transcribeInputWrapper.classList.toggle('hidden', mode !== 'transcribe');
+
+        // Show/hide voice selector (not needed for transcription)
+        DOM.voiceSelectorWrapper.classList.toggle('hidden', mode === 'transcribe');
+
+        // Update start button label
+        if (mode === 'transcribe') {
+            DOM.startBtn.innerHTML = '📝 Transcribe';
         } else {
-            DOM.textInputWrapper.classList.add('hidden');
-            DOM.srtInputWrapper.classList.remove('hidden');
+            DOM.startBtn.innerHTML = '🎙️ Generate Audio';
         }
 
         // Update start button state
@@ -178,14 +206,17 @@
 
     DOM.modeTextTab.addEventListener('click', () => setInputMode('text'));
     DOM.modeSrtTab.addEventListener('click', () => setInputMode('srt'));
+    DOM.modeTranscribeTab.addEventListener('click', () => setInputMode('transcribe'));
 
     /** Update the start button's enabled state based on current input */
     function updateStartButton() {
         if (state.inputMode === 'text') {
             const text = DOM.textInput.value.trim();
             DOM.startBtn.disabled = text.length === 0;
-        } else {
+        } else if (state.inputMode === 'srt') {
             DOM.startBtn.disabled = !state.selectedSrtFile;
+        } else if (state.inputMode === 'transcribe') {
+            DOM.startBtn.disabled = !state.selectedAudioFile;
         }
     }
 
@@ -266,8 +297,10 @@
     DOM.startBtn.addEventListener('click', async () => {
         if (state.inputMode === 'text') {
             await submitText();
-        } else {
+        } else if (state.inputMode === 'srt') {
             await submitSrt();
+        } else if (state.inputMode === 'transcribe') {
+            await submitTranscribe();
         }
     });
 
@@ -354,6 +387,106 @@
     }
 
     // ========================================================================
+    // Audio File Selection (Transcription)
+    // ========================================================================
+    function handleAudioSelect(file) {
+        if (!file) return;
+
+        const validExts = ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'wma', 'aac', 'webm'];
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!validExts.includes(ext)) {
+            showError(`Unsupported audio format '.${ext}'. Supported: ${validExts.join(', ')}`);
+            return;
+        }
+
+        state.selectedAudioFile = file;
+        DOM.audioFileName.textContent = file.name;
+        DOM.audioFileSize.textContent = `(${formatFileSize(file.size)})`;
+        DOM.audioFileInfo.classList.remove('hidden');
+        DOM.audioUploadZone.classList.add('has-file');
+        updateStartButton();
+    }
+
+    function clearAudio() {
+        state.selectedAudioFile = null;
+        DOM.audioInput.value = '';
+        DOM.audioFileInfo.classList.add('hidden');
+        DOM.audioUploadZone.classList.remove('has-file');
+        updateStartButton();
+    }
+
+    // Audio upload zone click
+    DOM.audioUploadZone.addEventListener('click', () => {
+        if (!state.selectedAudioFile) {
+            DOM.audioInput.click();
+        }
+    });
+
+    DOM.audioInput.addEventListener('change', (e) => {
+        handleAudioSelect(e.target.files[0]);
+    });
+
+    DOM.removeAudio.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearAudio();
+    });
+
+    // Audio drag and drop
+    DOM.audioUploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        DOM.audioUploadZone.classList.add('dragover');
+    });
+
+    DOM.audioUploadZone.addEventListener('dragleave', () => {
+        DOM.audioUploadZone.classList.remove('dragover');
+    });
+
+    DOM.audioUploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        DOM.audioUploadZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            handleAudioSelect(e.dataTransfer.files[0]);
+        }
+    });
+
+    /** Submit audio file for transcription */
+    async function submitTranscribe() {
+        if (!state.selectedAudioFile) return;
+
+        state.outputMode = 'transcription';
+
+        DOM.startBtn.disabled = true;
+        DOM.startBtn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border:2px solid rgba(255,255,255,0.3);border-top:2px solid white;border-radius:50%;animation:spin 0.8s linear infinite"></div> Transcribing...';
+
+        const formData = new FormData();
+        formData.append('audio', state.selectedAudioFile);
+
+        try {
+            const response = await fetch('/api/transcribe', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Upload failed');
+            }
+
+            state.currentJobId = data.job_id;
+            addLog(`Transcription job started: ${data.job_id} — ${data.filename}`, 'success');
+
+            showProgressView();
+            connectSSE(data.job_id);
+
+        } catch (err) {
+            showError(err.message);
+            DOM.startBtn.disabled = false;
+            DOM.startBtn.innerHTML = '📝 Transcribe';
+        }
+    }
+
+    // ========================================================================
     // Progress View
     // ========================================================================
     function showProgressView() {
@@ -373,7 +506,9 @@
         DOM.uploadSection.style.display = 'block';
         DOM.progressSection.classList.remove('active');
         DOM.downloadSection.classList.remove('active');
+        DOM.transcriptionResultSection.classList.remove('active');
         clearSrt();
+        clearAudio();
         DOM.textInput.value = '';
         DOM.charCount.textContent = '0 characters';
 
@@ -382,7 +517,11 @@
             state.elapsedTimer = null;
         }
 
-        DOM.startBtn.innerHTML = '🎙️ Generate Audio';
+        if (state.inputMode === 'transcribe') {
+            DOM.startBtn.innerHTML = '📝 Transcribe';
+        } else {
+            DOM.startBtn.innerHTML = '🎙️ Generate Audio';
+        }
         DOM.chunksGrid.innerHTML = '';
         DOM.logOutput.innerHTML = '';
         updateStartButton();
@@ -401,12 +540,14 @@
         DOM.downloadInfo.textContent = `Completed in ${formatTime(elapsed)}. Your Burmese dubbed audio is ready!`;
 
         const downloadUrl = `/api/download/${jobId}`;
-        DOM.downloadBtn.href = downloadUrl;
+        DOM.downloadBtn.href = downloadUrl + '?download=true';
         DOM.downloadBtn.setAttribute('download', '');
+        DOM.downloadBtn.classList.remove('disabled');
+        DOM.downloadBtn.style.pointerEvents = 'auto';
         DOM.downloadBtn.innerHTML = '⬇️ Download Dubbed Audio';
 
         // Setup audio preview
-        DOM.audioPreview.src = downloadUrl;
+        DOM.audioPreview.src = `${downloadUrl}?t=${Date.now()}`;
         DOM.speedSlider.value = 1.0;
         DOM.speedValue.textContent = '1.0x';
         DOM.pitchSlider.value = 1.0;
@@ -468,8 +609,13 @@
         // Handle completion
         if (data.stage === 'done') {
             DOM.statusSpinner.style.display = 'none';
-            addLog('✅ Dubbing complete!', 'success');
-            showDownloadView(data.job_id, data.output_file);
+            if (state.outputMode === 'transcription') {
+                addLog('✅ Transcription complete!', 'success');
+                showTranscriptionResult(data.job_id);
+            } else {
+                addLog('✅ Dubbing complete!', 'success');
+                showDownloadView(data.job_id, data.output_file);
+            }
             return;
         }
 
@@ -572,12 +718,28 @@
     // New Job
     // ========================================================================
     DOM.newJobBtn.addEventListener('click', () => {
+        cleanupAndReset();
+    });
+
+    function cleanupAndReset() {
+        if (state.currentJobId) {
+            fetch(`/api/cleanup/${state.currentJobId}`, { method: 'POST' })
+                .catch(err => console.error('Cleanup failed:', err));
+        }
         state.currentJobId = null;
+        state.outputMode = 'audio';
         if (state.eventSource) {
             state.eventSource.close();
             state.eventSource = null;
         }
         showUploadView();
+    }
+
+    DOM.downloadBtn.addEventListener('click', () => {
+        // Change text and appearance of button to show files are cleaned up
+        DOM.downloadBtn.classList.add('disabled');
+        DOM.downloadBtn.innerHTML = '✅ Downloaded (Files Cleaned Up)';
+        DOM.downloadBtn.style.pointerEvents = 'none';
     });
 
     // ========================================================================
@@ -791,7 +953,10 @@
             // Update audio player and download link with cache buster
             const newUrl = `/api/download/${state.currentJobId}?t=${Date.now()}`;
             DOM.audioPreview.src = newUrl;
-            DOM.downloadBtn.href = newUrl;
+            DOM.downloadBtn.href = newUrl + '&download=true';
+            DOM.downloadBtn.classList.remove('disabled');
+            DOM.downloadBtn.style.pointerEvents = 'auto';
+            DOM.downloadBtn.innerHTML = '⬇️ Download Dubbed Audio';
             
             // Auto play the new audio
             DOM.audioPreview.play().catch(() => {});
@@ -806,6 +971,84 @@
             DOM.applyAdjustmentsBtn.disabled = false;
             DOM.applyAdjustmentsBtn.textContent = '⚙️ Apply Adjustments';
         }
+    });
+
+    // ========================================================================
+    // Transcription Result
+    // ========================================================================
+    async function showTranscriptionResult(jobId) {
+        DOM.progressSection.classList.remove('active');
+        DOM.downloadSection.classList.remove('active');
+        DOM.transcriptionResultSection.classList.add('active');
+
+        if (state.elapsedTimer) {
+            clearInterval(state.elapsedTimer);
+            state.elapsedTimer = null;
+        }
+
+        const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+        DOM.transcriptionInfo.textContent = `Completed in ${formatTime(elapsed)}. Your Burmese audio has been transcribed.`;
+
+        // Fetch transcription text
+        try {
+            const res = await fetch(`/api/transcription/${jobId}`);
+            const data = await res.json();
+            if (data.text) {
+                DOM.transcriptionTextOutput.value = data.text;
+                DOM.transcriptionCharCount.textContent = `${data.text.length} character${data.text.length !== 1 ? 's' : ''}`;
+            } else {
+                DOM.transcriptionTextOutput.value = 'No transcription text available.';
+                DOM.transcriptionCharCount.textContent = '0 characters';
+            }
+        } catch (err) {
+            DOM.transcriptionTextOutput.value = 'Failed to load transcription.';
+            showError('Failed to fetch transcription text');
+        }
+    }
+
+    // Copy to clipboard
+    DOM.copyTranscriptionBtn.addEventListener('click', async () => {
+        const text = DOM.transcriptionTextOutput.value;
+        if (!text) return;
+
+        try {
+            await navigator.clipboard.writeText(text);
+            DOM.copyTranscriptionBtn.innerHTML = '✅ Copied!';
+            setTimeout(() => {
+                DOM.copyTranscriptionBtn.innerHTML = '📋 Copy to Clipboard';
+            }, 2000);
+        } catch (err) {
+            // Fallback: select text
+            DOM.transcriptionTextOutput.select();
+            document.execCommand('copy');
+            DOM.copyTranscriptionBtn.innerHTML = '✅ Copied!';
+            setTimeout(() => {
+                DOM.copyTranscriptionBtn.innerHTML = '📋 Copy to Clipboard';
+            }, 2000);
+        }
+    });
+
+    // Download as .txt
+    DOM.downloadTranscriptionBtn.addEventListener('click', () => {
+        const text = DOM.transcriptionTextOutput.value;
+        if (!text) return;
+
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `transcription_${state.currentJobId || 'output'}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    // Transcribe another
+    DOM.newTranscribeBtn.addEventListener('click', () => {
+        cleanupAndReset();
+        // Switch back to transcribe mode
+        setInputMode('transcribe');
     });
 
     // Load voices on page load

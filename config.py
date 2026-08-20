@@ -15,6 +15,10 @@ CHUNK_DURATION_SECONDS = 300  # 5 minutes per chunk
 MAX_FILE_SIZE_MB = 4096       # 4 GB max upload
 ALLOWED_EXTENSIONS = {"mp4", "mkv", "avi", "mov", "webm", "flv", "wmv"}
 
+# --- Audio Transcription ---
+AUDIO_EXTENSIONS = {"mp3", "wav", "ogg", "flac", "m4a", "wma", "aac", "webm"}
+TRANSCRIBE_CHUNK_SECONDS = 300  # 5 minutes per chunk for transcription
+
 # --- Whisper STT ---
 WHISPER_MODEL = "base"        # Options: tiny, base, small, medium, large-v3
 WHISPER_DEVICE = "auto"       # "auto" will use GPU if available, else CPU

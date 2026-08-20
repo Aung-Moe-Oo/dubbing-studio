@@ -1507,3 +1507,88 @@ body::before {
     width: 100%;
     accent-color: var(--accent-primary);
 }
+
+/* --- Transcription Input --- */
+.transcribe-input-wrapper {
+    margin-bottom: 0;
+}
+
+#audio-input {
+    display: none;
+}
+
+/* --- Transcription Result Section --- */
+.transcription-result-section {
+    display: none;
+    text-align: center;
+    padding: 32px;
+}
+
+.transcription-result-section.active {
+    display: block;
+    animation: fadeIn 0.6s ease;
+}
+
+.transcription-text-container {
+    margin: 20px 0;
+    text-align: left;
+}
+
+.transcription-text-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 0 4px;
+}
+
+.transcription-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.transcription-char-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.transcription-text-output {
+    width: 100%;
+    min-height: 200px;
+    max-height: 500px;
+    padding: 18px 20px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: 'Noto Sans Myanmar', 'Inter', sans-serif;
+    font-size: 1rem;
+    line-height: 2;
+    resize: vertical;
+    outline: none;
+    transition: var(--transition);
+}
+
+.transcription-text-output:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.1);
+}
+
+.transcription-text-output::selection {
+    background: rgba(139, 92, 246, 0.3);
+}
+
+/* --- Secondary Button --- */
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}

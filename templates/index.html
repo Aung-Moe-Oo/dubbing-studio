@@ -22,7 +22,7 @@
                 <h1 class="app-title">Myanmar Dubbing Studio</h1>
             </div>
             <p class="app-subtitle">
-                မြန်မာစာသားနှင့် SRT file ကို AI အသံဖိုင်အဖြစ် ပြောင်းနိုင်ပါပြီ ခင်ဗျာ
+                မြန်မာစာသားနှင့် SRT file ကို AI အသံဖိုင်အဖြစ် ပြောင်းနိုင်ပါပြီ · အသံဖိုင်ကို စာသားအဖြစ် ပြောင်းနိုင်ပါပြီ
             </p>
         </header>
 
@@ -48,6 +48,10 @@
                 <button class="mode-tab" id="mode-srt-tab" data-mode="srt">
                     <span class="mode-tab-icon">📜</span>
                     Upload SRT
+                </button>
+                <button class="mode-tab" id="mode-transcribe-tab" data-mode="transcribe">
+                    <span class="mode-tab-icon">🎧</span>
+                    Transcribe
                 </button>
             </div>
 
@@ -78,6 +82,28 @@
                     <span id="srt-file-name">subtitle.srt</span>
                     <span id="srt-file-size">(12 KB)</span>
                     <button class="remove-file" id="remove-srt" title="Remove subtitle">✕</button>
+                </div>
+            </div>
+
+            <!-- Audio Transcription Mode (hidden by default) -->
+            <div class="transcribe-input-wrapper hidden" id="transcribe-input-wrapper">
+                <div class="upload-zone" id="audio-upload-zone">
+                    <span class="upload-icon">🎧</span>
+                    <p class="upload-text">
+                        အသံဖိုင်ထည့်ပါ သို့မဟုတ် <strong>ရှာဖွေပါ</strong>
+                    </p>
+                    <p class="upload-hint">
+                        MP3, WAV, OGG, FLAC, M4A, AAC supported
+                    </p>
+                    <input type="file" id="audio-input" accept=".mp3,.wav,.ogg,.flac,.m4a,.wma,.aac,.webm">
+                </div>
+
+                <!-- Audio File Info (shown after file selected) -->
+                <div class="file-info hidden" id="audio-file-info">
+                    <span>🎵</span>
+                    <span id="audio-file-name">audio.mp3</span>
+                    <span id="audio-file-size">(5 MB)</span>
+                    <button class="remove-file" id="remove-audio" title="Remove audio">✕</button>
                 </div>
             </div>
 
@@ -214,6 +240,39 @@
                     </a>
                     <button class="btn btn-primary" id="new-job-btn">
                         🔄 Generate Another
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Transcription Result Section -->
+        <section class="transcription-result-section" id="transcription-result-section">
+            <div class="card">
+                <div class="download-icon">📝</div>
+                <h2 class="download-title">Transcription Complete!</h2>
+                <p class="download-subtitle" id="transcription-info">
+                    Your Burmese audio has been transcribed successfully.
+                </p>
+
+                <!-- Transcription Text Display -->
+                <div class="transcription-text-container">
+                    <div class="transcription-text-header">
+                        <span class="transcription-label">📜 Transcribed Text</span>
+                        <span class="transcription-char-count" id="transcription-char-count">0 characters</span>
+                    </div>
+                    <textarea class="transcription-text-output" id="transcription-text-output" readonly
+                        placeholder="Transcription will appear here..."></textarea>
+                </div>
+
+                <div class="actions-bar" style="margin-top: 20px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" id="copy-transcription-btn">
+                        📋 Copy to Clipboard
+                    </button>
+                    <button class="btn btn-success" id="download-transcription-btn">
+                        ⬇️ Download as .txt
+                    </button>
+                    <button class="btn btn-primary" id="new-transcribe-btn">
+                        🔄 Transcribe Another
                     </button>
                 </div>
             </div>
