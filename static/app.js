@@ -34,6 +34,9 @@
         srtFileName: document.getElementById('srt-file-name'),
         srtFileSize: document.getElementById('srt-file-size'),
         removeSrt: document.getElementById('remove-srt'),
+        srtTranslateToggle: document.getElementById('srt-translate-toggle'),
+        optTranslate: document.getElementById('opt-translate'),
+        optOriginal: document.getElementById('opt-original'),
 
         // Audio Transcription Upload
         transcribeInputWrapper: document.getElementById('transcribe-input-wrapper'),
@@ -106,6 +109,7 @@
     let state = {
         inputMode: 'text',      // 'text', 'srt', or 'transcribe'
         selectedSrtFile: null,
+        srtTranslateMode: 'translate',  // 'translate' or 'original'
         selectedAudioFile: null,
         currentJobId: null,
         eventSource: null,
@@ -246,6 +250,7 @@
         DOM.srtFileSize.textContent = `(${formatFileSize(file.size)})`;
         DOM.srtFileInfo.classList.remove('hidden');
         DOM.srtUploadZone.classList.add('has-file');
+        DOM.srtTranslateToggle.classList.remove('hidden');
         updateStartButton();
     }
 
@@ -254,6 +259,11 @@
         DOM.srtInput.value = '';
         DOM.srtFileInfo.classList.add('hidden');
         DOM.srtUploadZone.classList.remove('has-file');
+        DOM.srtTranslateToggle.classList.add('hidden');
+        state.srtTranslateMode = 'translate';
+        DOM.optTranslate.classList.add('selected');
+        DOM.optOriginal.classList.remove('selected');
+        DOM.optTranslate.querySelector('input').checked = true;
         updateStartButton();
     }
 
@@ -289,6 +299,17 @@
         if (e.dataTransfer.files.length > 0) {
             handleSrtSelect(e.dataTransfer.files[0]);
         }
+    });
+
+    // ========================================================================
+    // SRT Translation Mode Toggle
+    // ========================================================================
+    document.querySelectorAll('input[name="srt_translate_mode"]').forEach((radio) => {
+        radio.addEventListener('change', (e) => {
+            state.srtTranslateMode = e.target.value;
+            DOM.optTranslate.classList.toggle('selected', e.target.value === 'translate');
+            DOM.optOriginal.classList.toggle('selected', e.target.value === 'original');
+        });
     });
 
     // ========================================================================
@@ -357,6 +378,9 @@
         formData.append('subtitle', state.selectedSrtFile);
         formData.append('source_lang', sourceLang);
         formData.append('output_mode', 'audio');
+        if (state.srtTranslateMode === 'original') {
+            formData.append('skip_translate', 'true');
+        }
         if (state.selectedVoice) {
             formData.append('tts_voice', state.selectedVoice.ShortName);
         }

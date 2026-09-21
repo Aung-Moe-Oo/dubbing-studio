@@ -82,3 +82,13 @@ Thumbs.db
 .ipynb_checkpoints
 profile_default/
 ipython_config.py
+
+# Testing files
+test.txt
+test1.txt
+test2.txt
+format.js
+formatSrt.js
+output.txt
+stretchSrt.js
+StretchedSrt.txt

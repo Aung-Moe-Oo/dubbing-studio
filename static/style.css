@@ -1592,3 +1592,108 @@ body::before {
     border-color: rgba(255, 255, 255, 0.15);
     transform: translateY(-1px);
 }
+
+/* --- SRT Translation Mode Toggle --- */
+.srt-translate-toggle {
+    margin-top: 16px;
+    animation: fadeSlideIn 0.35s ease-out;
+}
+
+@keyframes fadeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.translate-toggle-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    letter-spacing: 0.02em;
+}
+
+.translate-toggle-title .icon {
+    font-size: 1.1rem;
+}
+
+.translate-toggle-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.translate-option {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1.5px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: var(--transition);
+    user-select: none;
+}
+
+.translate-option:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.translate-option.selected {
+    background: rgba(139, 92, 246, 0.08);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.1), inset 0 0 20px rgba(139, 92, 246, 0.03);
+}
+
+.translate-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.translate-option-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.translate-option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.translate-option-text strong {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.translate-option-text small {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    font-family: 'Noto Sans Myanmar', 'Inter', sans-serif;
+}
+
+.translate-option.selected .translate-option-text strong {
+    color: var(--accent-primary);
+}
+
+@media (max-width: 500px) {
+    .translate-toggle-options {
+        grid-template-columns: 1fr;
+    }
+}

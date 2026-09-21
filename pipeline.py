@@ -75,7 +75,8 @@ class DubbingPipeline:
                  progress_callback: Optional[Callable] = None,
                  srt_file: Optional[str] = None,
                  output_mode: str = "video",
-                 tts_voice: Optional[str] = None):
+                 tts_voice: Optional[str] = None,
+                 skip_translate: bool = False):
         self.job_id = job_id
         self.input_file = input_file
         self.source_lang = source_lang  # "en", "zh", or "auto"
@@ -83,6 +84,7 @@ class DubbingPipeline:
         self.srt_file = srt_file  # Optional SRT subtitle file path
         self.output_mode = output_mode  # "video" or "audio"
         self.tts_voice = tts_voice or config.TTS_VOICE  # User-selected voice or default
+        self.skip_translate = skip_translate  # If True, use original SRT text (no translation)
 
         self.job_dir = os.path.join(config.TEMP_FOLDER, job_id)
         self.chunks_dir = os.path.join(self.job_dir, "chunks")
@@ -520,8 +522,9 @@ class DubbingPipeline:
                     seg.tts_file = tts_path
 
                     # Check duration and dynamically speed up if it overflows
+                    # Skip speed-up in SRT-only mode (no input file) — always 1x
                     target_dur = seg.end - seg.start
-                    if target_dur > 0:
+                    if target_dur > 0 and self.input_file:
                         tts_dur = self._get_duration(tts_path)
                         if tts_dur > target_dur:
                             ratio = tts_dur / target_dur
@@ -874,48 +877,117 @@ class DubbingPipeline:
                 # SRT-only mode to generate MP3 from SRT
                 if not use_srt:
                     raise Exception("No SRT file provided for dubbing in SRT-only mode")
-                
-                self.status.total_chunks = 1
-                self.status.chunks = [ChunkStatus(index=0, total=1)]
-                self._update_status(message="Processing SRT translation and speech generation...", overall_progress=10.0)
-                
-                # Get the duration from the last segment in SRT
-                chunk_duration = all_srt_segments[-1].end if all_srt_segments else 0.0
-                
-                # Stage 4: Translate
-                self._update_chunk(0, stage="translating", progress=10.0, message="Translating subtitle text...")
-                translated_segments = self.translate(all_srt_segments, 0)
-                
-                # Stage 5: Generate TTS
-                self._update_chunk(0, stage="tts", progress=40.0, message="Generating audio...")
-                tts_segments = self.generate_tts(translated_segments, 0)
-                
-                # Stage 6: Build aligned audio
-                self._update_chunk(0, stage="merging", progress=80.0, message="Assembling final audio...")
-                burmese_audio = self.build_aligned_audio(tts_segments, chunk_duration, 0)
-                
-                # Combine (which converts the single WAV to MP3)
-                output_name = f"dubbed_{self.job_id}.mp3"
-                output_path = os.path.join(config.OUTPUT_FOLDER, output_name)
-                
-                self._update_status(stage="combining", message="Converting to MP3...")
-                self._run_ffmpeg([
-                    "-i", burmese_audio,
-                    "-acodec", "libmp3lame",
-                    "-b:a", "192k",
-                    "-ar", "44100",
-                    "-ac", "2",
-                    output_path
-                ], desc="convert single audio chunk to MP3")
-                
+
+                # Get the total duration from the last segment in SRT
+                total_srt_duration = all_srt_segments[-1].end if all_srt_segments else 0.0
+
+                # Divide SRT into 5-minute (300s) time-based chunks for optimized processing
+                srt_chunk_dur = config.CHUNK_DURATION_SECONDS  # 300s = 5 minutes
+                num_srt_chunks = max(1, math.ceil(total_srt_duration / srt_chunk_dur))
+
+                self.status.total_chunks = num_srt_chunks
+                self.status.chunks = [ChunkStatus(index=i, total=num_srt_chunks) for i in range(num_srt_chunks)]
                 self._update_status(
-                    stage="done",
-                    overall_progress=100.0,
-                    message="Audio generation complete!",
-                    output_file=output_path,
-                    original_output_file=output_path
+                    message=f"Splitting SRT ({total_srt_duration:.0f}s) into {num_srt_chunks} chunk(s) of {srt_chunk_dur}s each...",
+                    overall_progress=5.0
                 )
-                self._update_chunk(0, stage="done", progress=100.0, message="Audio ready!")
+
+                logger.info(f"SRT-only mode: {len(all_srt_segments)} segments, {total_srt_duration:.1f}s total, {num_srt_chunks} chunks")
+
+                audio_chunks = []
+                for ci in range(num_srt_chunks):
+                    self._check_cancelled()
+                    self.status.current_chunk = ci
+
+                    chunk_start = ci * srt_chunk_dur
+                    chunk_end = min((ci + 1) * srt_chunk_dur, total_srt_duration)
+                    chunk_duration = chunk_end - chunk_start
+
+                    # Filter segments belonging to this time window and re-time to chunk-local
+                    chunk_segments = self.get_segments_for_chunk(
+                        all_srt_segments, ci, chunk_start, chunk_end
+                    )
+
+                    overall_pct = 5.0 + (85.0 * ci / num_srt_chunks)
+                    self._update_status(
+                        overall_progress=overall_pct,
+                        message=f"Processing chunk {ci + 1}/{num_srt_chunks} ({chunk_start:.0f}s–{chunk_end:.0f}s)..."
+                    )
+
+                    if not chunk_segments:
+                        # No subtitle segments in this time window — generate silence
+                        logger.info(f"SRT chunk {ci}: no segments in [{chunk_start:.1f}s, {chunk_end:.1f}s], generating silence")
+                        silence_path = os.path.join(self.audio_dir, f"silence_{ci:03d}.wav")
+                        self._run_ffmpeg([
+                            "-f", "lavfi",
+                            "-i", "anullsrc=r=16000:cl=mono",
+                            "-t", str(chunk_duration),
+                            "-acodec", "pcm_s16le",
+                            silence_path
+                        ], desc=f"silence for empty SRT chunk {ci}")
+                        audio_chunks.append(silence_path)
+                        self._update_chunk(ci, stage="done", progress=100.0,
+                                           message="No subtitles in this range — silence")
+                        continue
+
+                    self._update_chunk(ci, stage="translating", progress=5.0,
+                                       message=f"Loaded {len(chunk_segments)} segments")
+
+                    # Stage 4: Translate (or skip)
+                    if self.skip_translate:
+                        self._update_chunk(ci, stage="translating", progress=10.0,
+                                           message="Keeping original text (no translation)...")
+                        for seg in chunk_segments:
+                            seg.translated = seg.text
+                        self._update_chunk(ci, progress=35.0, message="Original text ready")
+                    else:
+                        self._update_chunk(ci, stage="translating", progress=10.0,
+                                           message="Translating subtitle text...")
+                        chunk_segments = self.translate(chunk_segments, ci)
+
+                    # Stage 5: Generate TTS
+                    self._update_chunk(ci, stage="tts", progress=40.0,
+                                       message="Generating audio...")
+                    chunk_segments = self.generate_tts(chunk_segments, ci)
+
+                    # Stage 6: Build aligned audio
+                    self._update_chunk(ci, stage="merging", progress=80.0,
+                                       message="Assembling chunk audio...")
+                    burmese_audio = self.build_aligned_audio(chunk_segments, chunk_duration, ci)
+
+                    audio_chunks.append(burmese_audio)
+                    self._update_chunk(ci, stage="done", progress=100.0,
+                                       message="Chunk audio ready!")
+
+                    overall_pct = 5.0 + (85.0 * (ci + 1) / num_srt_chunks)
+                    self._update_status(overall_progress=overall_pct)
+
+                # Stage 8: Combine all audio chunks into final MP3
+                if len(audio_chunks) == 1:
+                    output_name = f"dubbed_{self.job_id}.mp3"
+                    output_path = os.path.join(config.OUTPUT_FOLDER, output_name)
+
+                    self._update_status(stage="combining", message="Converting to MP3...")
+                    self._run_ffmpeg([
+                        "-i", audio_chunks[0],
+                        "-acodec", "libmp3lame",
+                        "-b:a", "192k",
+                        "-ar", "44100",
+                        "-ac", "2",
+                        output_path
+                    ], desc="convert single audio chunk to MP3")
+
+                    self._update_status(
+                        stage="done",
+                        overall_progress=100.0,
+                        message="Audio generation complete!",
+                        output_file=output_path,
+                        original_output_file=output_path
+                    )
+                else:
+                    output_path = self.combine_audio_chunks(audio_chunks)
+                    self.status.original_output_file = output_path
+
                 return output_path
 
             # Stage 1: Split video
@@ -980,8 +1052,12 @@ class DubbingPipeline:
                                        message="No speech/subtitles found — kept original")
                     continue
 
-                # Stage 4: Translate
-                segments = self.translate(segments, i)
+                # Stage 4: Translate (or skip)
+                if self.skip_translate:
+                    for seg in segments:
+                        seg.translated = seg.text
+                else:
+                    segments = self.translate(segments, i)
 
                 # Stage 5: Generate TTS
                 segments = self.generate_tts(segments, i)

@@ -135,7 +135,7 @@ def status_to_dict(status: JobStatus) -> dict:
     }
 
 
-def run_pipeline(job_id: str, input_file: str, source_lang: str, srt_file: str = None, output_mode: str = "video", tts_voice: str = None):
+def run_pipeline(job_id: str, input_file: str, source_lang: str, srt_file: str = None, output_mode: str = "video", tts_voice: str = None, skip_translate: bool = False):
     """Run the dubbing pipeline in a background thread."""
     queue = job_queues.get(job_id)
 
@@ -151,7 +151,8 @@ def run_pipeline(job_id: str, input_file: str, source_lang: str, srt_file: str =
         progress_callback=progress_callback,
         srt_file=srt_file,
         output_mode=output_mode,
-        tts_voice=tts_voice
+        tts_voice=tts_voice,
+        skip_translate=skip_translate
     )
     pipelines[job_id] = pipeline
 
@@ -212,6 +213,8 @@ def upload_video():
 
     output_mode = "audio"
 
+    skip_translate = request.form.get("skip_translate", "").strip().lower() == "true"
+
     # Generate job ID and save file
     job_id = str(uuid.uuid4())[:8]
     saved_filename = f"{job_id}.srt"
@@ -224,7 +227,7 @@ def upload_video():
     job_queues[job_id] = Queue()
     thread = threading.Thread(
         target=run_pipeline,
-        args=(job_id, None, source_lang, srt_path, output_mode, tts_voice),
+        args=(job_id, None, source_lang, srt_path, output_mode, tts_voice, skip_translate),
         daemon=True
     )
     job_threads[job_id] = thread

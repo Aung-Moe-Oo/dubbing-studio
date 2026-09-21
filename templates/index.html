@@ -83,6 +83,32 @@
                     <span id="srt-file-size">(12 KB)</span>
                     <button class="remove-file" id="remove-srt" title="Remove subtitle">✕</button>
                 </div>
+
+                <!-- Translation Mode Toggle (shown after file selected) -->
+                <div class="srt-translate-toggle hidden" id="srt-translate-toggle">
+                    <div class="translate-toggle-title">
+                        <span class="icon">🌐</span>
+                        Translation Mode
+                    </div>
+                    <div class="translate-toggle-options">
+                        <label class="translate-option selected" id="opt-translate">
+                            <input type="radio" name="srt_translate_mode" value="translate" checked>
+                            <span class="translate-option-icon">🇲🇲</span>
+                            <span class="translate-option-text">
+                                <strong>Translate to Burmese</strong>
+                                <small>Subtitle text ကို မြန်မာဘာသာပြန်ပါ</small>
+                            </span>
+                        </label>
+                        <label class="translate-option" id="opt-original">
+                            <input type="radio" name="srt_translate_mode" value="original">
+                            <span class="translate-option-icon">📄</span>
+                            <span class="translate-option-text">
+                                <strong>Keep Original</strong>
+                                <small>မူရင်းစာသားအတိုင်း အသံထုတ်ပါ</small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <!-- Audio Transcription Mode (hidden by default) -->
