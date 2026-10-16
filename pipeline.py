@@ -510,21 +510,32 @@ class DubbingPipeline:
                     continue
 
                 tts_path = os.path.join(self.tts_dir, f"tts_{chunk_idx:03d}_{i:04d}.mp3")
-                try:
-                    # Generate at base rate first
-                    communicate = edge_tts.Communicate(
-                        seg.translated,
-                        self.tts_voice,
-                        rate=config.TTS_RATE,
-                        volume=config.TTS_VOLUME
-                    )
-                    await communicate.save(tts_path)
-                    seg.tts_file = tts_path
+                success = False
+                for attempt in range(3):
+                    try:
+                        # Generate at base rate first
+                        communicate = edge_tts.Communicate(
+                            seg.translated,
+                            self.tts_voice,
+                            rate=config.TTS_RATE,
+                            volume=config.TTS_VOLUME
+                        )
+                        await communicate.save(tts_path)
+                        seg.tts_file = tts_path
+                        success = True
+                        break
+                    except Exception as e:
+                        if attempt < 2:
+                            logger.warning(f"TTS attempt {attempt + 1} failed for segment {i}: {e}. Retrying...")
+                            await asyncio.sleep(1.0 + attempt)
+                        else:
+                            logger.warning(f"TTS failed for segment {i} after 3 attempts: {e}")
+                            seg.tts_file = ""
 
+                if success and seg.tts_file:
                     # Check duration and dynamically speed up if it overflows
-                    # Skip speed-up in SRT-only mode (no input file) — always 1x
                     target_dur = seg.end - seg.start
-                    if target_dur > 0 and self.input_file:
+                    if target_dur > 0:
                         tts_dur = self._get_duration(tts_path)
                         if tts_dur > target_dur:
                             ratio = tts_dur / target_dur
@@ -536,16 +547,16 @@ class DubbingPipeline:
                                 if speedup > 0:
                                     rate_str = f"+{speedup}%"
                                     logger.info(f"Regenerating TTS segment {i} at rate {rate_str} to fit target {target_dur:.2f}s (was {tts_dur:.2f}s)")
-                                    communicate = edge_tts.Communicate(
-                                        seg.translated,
-                                        self.tts_voice,
-                                        rate=rate_str,
-                                        volume=config.TTS_VOLUME
-                                    )
-                                    await communicate.save(tts_path)
-                except Exception as e:
-                    logger.warning(f"TTS failed for segment {i}: {e}")
-                    seg.tts_file = ""
+                                    try:
+                                        communicate = edge_tts.Communicate(
+                                            seg.translated,
+                                            self.tts_voice,
+                                            rate=rate_str,
+                                            volume=config.TTS_VOLUME
+                                        )
+                                        await communicate.save(tts_path)
+                                    except Exception as e:
+                                        logger.warning(f"Failed to regenerate TTS at adjusted rate: {e}")
 
                 pct = 60.0 + (20.0 * (i + 1) / len(segments))
                 self._update_chunk(chunk_idx, progress=pct,

@@ -520,13 +520,22 @@ def preview_voice():
 
     try:
         import edge_tts
-        communicate = edge_tts.Communicate(
-            preview_text,
-            voice_name,
-            rate=config.TTS_RATE,
-            volume=config.TTS_VOLUME
-        )
-        asyncio.run(communicate.save(preview_file))
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                communicate = edge_tts.Communicate(
+                    preview_text,
+                    voice_name,
+                    rate=config.TTS_RATE,
+                    volume=config.TTS_VOLUME
+                )
+                asyncio.run(communicate.save(preview_file))
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    time.sleep(1.0)
+                else:
+                    raise
 
         return send_file(
             preview_file,
@@ -612,13 +621,23 @@ def text_to_speech():
                 chunk_path = os.path.join(tts_dir, f"chunk_{i:03d}.mp3")
                 chunk_paths.append(chunk_path)
 
-                communicate = edge_tts.Communicate(
-                    chunk_txt,
-                    tts_voice,
-                    rate=config.TTS_RATE,
-                    volume=config.TTS_VOLUME
-                )
-                asyncio.run(communicate.save(chunk_path))
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        communicate = edge_tts.Communicate(
+                            chunk_txt,
+                            tts_voice,
+                            rate=config.TTS_RATE,
+                            volume=config.TTS_VOLUME
+                        )
+                        asyncio.run(communicate.save(chunk_path))
+                        break
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            logger.warning(f"TTS attempt {attempt + 1} failed for chunk {i}: {e}. Retrying...")
+                            time.sleep(1.0 + attempt)
+                        else:
+                            raise
 
                 status.chunks[i].stage = "done"
                 status.chunks[i].progress = 100.0
@@ -748,16 +767,14 @@ def transcribe_audio():
             import subprocess
             from pydub import AudioSegment
 
-            # --- Detect duration ---
+            # --- Detect duration for status reporting only ---
             audio_seg = AudioSegment.from_file(audio_path)
             duration_sec = len(audio_seg) / 1000.0
-            chunk_duration = config.TRANSCRIBE_CHUNK_SECONDS
 
-            # Determine chunks
-            if duration_sec > chunk_duration:
-                num_chunks = int(duration_sec // chunk_duration) + (1 if duration_sec % chunk_duration > 0 else 0)
-            else:
-                num_chunks = 1
+            # faster-whisper handles long audio internally via its own VAD chunking.
+            # We pass the full file directly — no manual splitting needed.
+            # Manual chunking at hard boundaries corrupts Burmese word boundaries.
+            num_chunks = 1
 
             status = JobStatus(
                 job_id=job_id,
@@ -765,36 +782,14 @@ def transcribe_audio():
                 total_chunks=num_chunks,
                 start_time=time.time()
             )
-            status.chunks = [ChunkStatus(index=i, total=num_chunks) for i in range(num_chunks)]
+            status.chunks = [ChunkStatus(index=0, total=1)]
             jobs[job_id] = status
 
             status.stage = "processing"
-            status.message = f"Audio duration: {int(duration_sec)}s — splitting into {num_chunks} chunk(s)..."
+            status.message = f"Audio duration: {int(duration_sec)}s — preparing for Burmese transcription..."
             status.overall_progress = 5.0
             if queue:
                 queue.put(status_to_dict(status))
-
-            # --- Split audio into chunks if needed ---
-            chunk_dir = os.path.join(config.TEMP_FOLDER, job_id)
-            os.makedirs(chunk_dir, exist_ok=True)
-            chunk_paths = []
-
-            if num_chunks == 1:
-                chunk_paths.append(audio_path)
-            else:
-                for i in range(num_chunks):
-                    start_ms = i * chunk_duration * 1000
-                    end_ms = min((i + 1) * chunk_duration * 1000, len(audio_seg))
-                    chunk_seg = audio_seg[start_ms:end_ms]
-
-                    chunk_path = os.path.join(chunk_dir, f"chunk_{i:03d}.wav")
-                    chunk_seg.export(chunk_path, format="wav")
-                    chunk_paths.append(chunk_path)
-
-                    status.message = f"Exported chunk {i+1}/{num_chunks}..."
-                    status.overall_progress = 5.0 + (i / num_chunks) * 10.0
-                    if queue:
-                        queue.put(status_to_dict(status))
 
             status.overall_progress = 15.0
             status.message = "Loading Whisper model..."
@@ -822,60 +817,108 @@ def transcribe_audio():
             )
 
             status.overall_progress = 20.0
-            status.message = "Transcribing audio..."
+            status.message = "Transcribing audio in Burmese (မြန်မာဘာသာ)..."
+            status.chunks[0].stage = "transcribing"
+            status.chunks[0].message = "Transcribing full audio..."
+            status.chunks[0].progress = 5.0
             if queue:
                 queue.put(status_to_dict(status))
 
-            # --- Transcribe each chunk ---
-            all_text_segments = []
-            for i, chunk_path in enumerate(chunk_paths):
+            # --- Transcribe full audio with Burmese-optimised settings ---
+            all_srt_segments = []  # list of dicts: {index, start, end, text}
+            global_index = 1
+
+            if getattr(status, 'cancelled', False):
+                raise Exception("Job cancelled by user")
+
+            segments, info = model.transcribe(
+                audio_path,
+                language="my",              # Burmese (Myanmar)
+                beam_size=5,
+                vad_filter=True,            # Skip silence — critical for Burmese
+                vad_parameters=dict(
+                    min_silence_duration_ms=500,
+                    speech_pad_ms=400,
+                ),
+                condition_on_previous_text=True,   # Improves Burmese contextual accuracy
+                no_speech_threshold=0.45,          # Reject non-speech frames
+                compression_ratio_threshold=2.4,   # Filter out noise-only segments
+                log_prob_threshold=-1.0,
+                word_timestamps=False,
+            )
+
+            seg_count = 0
+            for segment in segments:
                 if getattr(status, 'cancelled', False):
                     raise Exception("Job cancelled by user")
 
-                status.current_chunk = i
-                status.chunks[i].stage = "transcribing"
-                status.chunks[i].message = "Transcribing..."
-                status.chunks[i].progress = 10.0
+                text = segment.text.strip()
+                if not text:
+                    continue
 
-                overall_pct = 20.0 + (i / num_chunks) * 70.0
-                status.overall_progress = round(overall_pct, 1)
-                status.message = f"Transcribing chunk {i+1} of {num_chunks}..."
-                if queue:
+                all_srt_segments.append({
+                    "index": global_index,
+                    "start": segment.start,
+                    "end": segment.end,
+                    "text": text,
+                })
+                global_index += 1
+                seg_count += 1
+
+                # Emit progress based on audio position
+                pct = 20.0 + min((segment.end / max(duration_sec, 1)) * 70.0, 70.0)
+                status.overall_progress = round(pct, 1)
+                status.message = f"Transcribing... ({seg_count} segments found)"
+                status.chunks[0].progress = round(min((segment.end / max(duration_sec, 1)) * 100.0, 95.0), 1)
+                status.chunks[0].message = f"{seg_count} segments transcribed"
+                if queue and seg_count % 5 == 0:  # Throttle SSE updates
                     queue.put(status_to_dict(status))
 
-                segments, info = model.transcribe(
-                    chunk_path,
-                    language="my",
-                    beam_size=5,
-                    vad_filter=True
-                )
+            status.chunks[0].stage = "done"
+            status.chunks[0].progress = 100.0
+            status.chunks[0].message = f"Done — {seg_count} segments"
 
-                chunk_text_parts = []
-                for segment in segments:
-                    chunk_text_parts.append(segment.text.strip())
+            # --- Build SRT content ---
+            def seconds_to_srt_time(s):
+                """Convert float seconds to SRT timestamp string HH:MM:SS,mmm"""
+                s = max(0.0, s)
+                millis = int(round((s % 1) * 1000))
+                total_int = int(s)
+                sec = total_int % 60
+                total_int //= 60
+                minute = total_int % 60
+                hour = total_int // 60
+                return f"{hour:02d}:{minute:02d}:{sec:02d},{millis:03d}"
 
-                chunk_text = " ".join(chunk_text_parts)
-                all_text_segments.append(chunk_text)
+            srt_lines = []
+            for seg in all_srt_segments:
+                srt_lines.append(str(seg["index"]))
+                srt_lines.append(f"{seconds_to_srt_time(seg['start'])} --> {seconds_to_srt_time(seg['end'])}")
+                srt_lines.append(seg["text"])
+                srt_lines.append("")
 
-                status.chunks[i].stage = "done"
-                status.chunks[i].progress = 100.0
-                status.chunks[i].message = f"Transcribed ({len(chunk_text)} chars)"
-                if queue:
-                    queue.put(status_to_dict(status))
+            # Use CRLF line endings (SRT standard) and UTF-8 BOM for maximum
+            # compatibility with media players rendering Myanmar Unicode script.
+            full_srt = "\r\n".join(srt_lines).strip()
+            # Also build plain text (for char count / copy)
+            full_text = "\n".join(seg["text"] for seg in all_srt_segments).strip()
 
-            # --- Combine all transcription text ---
-            full_text = "\n".join(all_text_segments).strip()
-            transcriptions[job_id] = full_text
+            transcriptions[job_id] = {
+                "srt": full_srt,
+                "text": full_text,
+                "segments": all_srt_segments,
+            }
 
-            # Save transcription to a text file
-            output_name = f"transcription_{job_id}.txt"
+            # Save with UTF-8 BOM (utf-8-sig) so VLC, MPC-HC, Windows Media Player
+            # all correctly render Myanmar Unicode without mojibake.
+            output_name = f"transcription_{job_id}.srt"
             output_path = os.path.join(config.OUTPUT_FOLDER, output_name)
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write(full_text)
+            with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
+                f.write(full_srt)
 
             status.stage = "done"
             status.overall_progress = 100.0
-            status.message = f"Transcription complete! ({len(full_text)} characters)"
+            status.message = f"Transcription complete! ({len(all_srt_segments)} segments, {len(full_text)} chars)"
             status.output_file = output_path
             status.original_output_file = output_path
             jobs[job_id] = status
@@ -884,7 +927,7 @@ def transcribe_audio():
                 queue.put(status_to_dict(status))
                 queue.put("DONE")
 
-            logger.info(f"Transcription job {job_id} complete: {len(full_text)} chars")
+            logger.info(f"Transcription job {job_id} complete: {len(all_srt_segments)} segments, {len(full_text)} chars")
 
         except Exception as e:
             logger.error(f"Transcription job {job_id} failed: {e}")
@@ -914,25 +957,59 @@ def transcribe_audio():
 
 @app.route("/api/transcription/<job_id>")
 def get_transcription(job_id):
-    """Return the transcribed text for a completed job."""
+    """Return the transcribed SRT and text for a completed job."""
     if job_id in transcriptions:
-        return jsonify({
-            "job_id": job_id,
-            "text": transcriptions[job_id]
-        })
+        data = transcriptions[job_id]
+        if isinstance(data, dict):
+            return jsonify({"job_id": job_id, **data})
+        # Legacy plain-text fallback
+        return jsonify({"job_id": job_id, "text": data, "srt": data, "segments": []})
 
-    # Check if the text file exists on disk
-    output_path = os.path.join(config.OUTPUT_FOLDER, f"transcription_{job_id}.txt")
-    if os.path.exists(output_path):
-        with open(output_path, "r", encoding="utf-8") as f:
+    # Check if the SRT file exists on disk
+    srt_path = os.path.join(config.OUTPUT_FOLDER, f"transcription_{job_id}.srt")
+    if os.path.exists(srt_path):
+        with open(srt_path, "r", encoding="utf-8") as f:
+            srt_content = f.read()
+        # Parse segments from SRT for structured response
+        segments = []
+        blocks = srt_content.strip().split("\n\n")
+        for block in blocks:
+            lines = block.strip().splitlines()
+            if len(lines) >= 3:
+                try:
+                    idx = int(lines[0])
+                    times = lines[1].split(" --> ")
+                    text = " ".join(lines[2:])
+                    segments.append({"index": idx, "start_ts": times[0], "end_ts": times[1], "text": text})
+                except Exception:
+                    pass
+        plain_text = " ".join(s["text"] for s in segments)
+        result = {"job_id": job_id, "srt": srt_content, "text": plain_text, "segments": segments}
+        transcriptions[job_id] = result
+        return jsonify(result)
+
+    # Legacy .txt fallback
+    txt_path = os.path.join(config.OUTPUT_FOLDER, f"transcription_{job_id}.txt")
+    if os.path.exists(txt_path):
+        with open(txt_path, "r", encoding="utf-8") as f:
             text = f.read()
-        transcriptions[job_id] = text
-        return jsonify({
-            "job_id": job_id,
-            "text": text
-        })
+        return jsonify({"job_id": job_id, "text": text, "srt": text, "segments": []})
 
     return jsonify({"error": "Transcription not found"}), 404
+
+
+@app.route("/api/transcription/<job_id>/download")
+def download_transcription_srt(job_id):
+    """Download the SRT file for a completed transcription job."""
+    srt_path = os.path.join(config.OUTPUT_FOLDER, f"transcription_{job_id}.srt")
+    if os.path.exists(srt_path):
+        return send_file(
+            srt_path,
+            as_attachment=True,
+            download_name=f"transcription_{job_id}.srt",
+            mimetype="text/plain"
+        )
+    return jsonify({"error": "SRT file not found"}), 404
 
 
 # ============================================================================

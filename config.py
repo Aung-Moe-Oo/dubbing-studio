@@ -20,7 +20,9 @@ AUDIO_EXTENSIONS = {"mp3", "wav", "ogg", "flac", "m4a", "wma", "aac", "webm"}
 TRANSCRIBE_CHUNK_SECONDS = 300  # 5 minutes per chunk for transcription
 
 # --- Whisper STT ---
-WHISPER_MODEL = "base"        # Options: tiny, base, small, medium, large-v3
+WHISPER_MODEL = "small"       # Options: tiny, base, small, medium, large-v3
+                              # 'small' gives much better Burmese (Myanmar) accuracy
+                              # over 'base' with acceptable CPU speed.
 WHISPER_DEVICE = "auto"       # "auto" will use GPU if available, else CPU
 WHISPER_COMPUTE_TYPE = "int8" # "float16" for GPU, "int8" for CPU
 

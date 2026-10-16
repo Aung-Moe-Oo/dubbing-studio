@@ -1697,3 +1697,361 @@ body::before {
         grid-template-columns: 1fr;
     }
 }
+
+/* ============================================================
+   SRT Preview Panel
+   ============================================================ */
+
+.srt-preview-container {
+    margin-top: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.srt-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(139, 92, 246, 0.08);
+    border-bottom: 1px solid var(--border-color);
+    gap: 10px;
+}
+
+.srt-preview-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.srt-segment-count {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--accent-primary);
+    background: rgba(139, 92, 246, 0.15);
+    padding: 2px 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.srt-preview-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.btn-srt-raw {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: 'Inter', monospace;
+}
+
+.btn-srt-raw:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(139, 92, 246, 0.4);
+}
+
+.btn-srt-raw.active {
+    color: var(--accent-primary);
+    background: rgba(139, 92, 246, 0.12);
+    border-color: rgba(139, 92, 246, 0.4);
+}
+
+/* Scrollable segments container */
+.srt-segments-view {
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
+}
+
+.srt-segments-view::-webkit-scrollbar {
+    width: 5px;
+}
+
+.srt-segments-view::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.3);
+    border-radius: 3px;
+}
+
+/* Each SRT subtitle entry */
+.srt-segment-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-md);
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.srt-segment-card:hover {
+    background: rgba(139, 92, 246, 0.06);
+    border-color: rgba(139, 92, 246, 0.2);
+}
+
+.srt-seg-index {
+    flex-shrink: 0;
+    min-width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 6px;
+    font-variant-numeric: tabular-nums;
+}
+
+.srt-seg-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.srt-seg-timestamps {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+    flex-wrap: wrap;
+}
+
+.srt-ts-start,
+.srt-ts-end {
+    font-size: 0.72rem;
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-weight: 600;
+    color: var(--info);
+    background: rgba(6, 182, 212, 0.1);
+    padding: 2px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.srt-ts-arrow {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.srt-seg-text {
+    /* Myanmar glyphs stack tall vowel signs above/below the base consonant.
+       A line-height of at least 1.9 prevents ascender/descender clipping. */
+    font-size: 0.92rem;
+    line-height: 2.0;
+    color: var(--text-primary);
+    font-family: 'Noto Sans Myanmar', 'Pyidaungsu', 'Myanmar Text', 'Inter', sans-serif;
+    word-break: break-word;
+    /* Prevent WebKit from compositing Myanmar Unicode incorrectly */
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* Raw SRT textarea — Myanmar font alongside monospace for readable timestamps */
+.srt-raw-output {
+    width: 100%;
+    min-height: 380px;
+    max-height: 420px;
+    padding: 14px 16px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    /* Myanmar text lines need extra height; monospace for timestamp readability */
+    font-family: 'Noto Sans Myanmar', 'Courier New', 'Consolas', monospace;
+    font-size: 0.82rem;
+    line-height: 2.1;
+    resize: vertical;
+    outline: none;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* Loading / error states */
+.srt-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 30px 20px;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    justify-content: center;
+}
+
+.srt-error {
+    padding: 20px;
+    color: var(--error);
+    font-size: 0.88rem;
+    text-align: center;
+}
+
+.srt-fallback-note {
+    padding: 12px 16px;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-style: italic;
+    text-align: center;
+}
+
+/* Stats bar */
+.transcription-stats {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-top: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.stat-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 12px 16px;
+    border-right: 1px solid var(--border-color);
+}
+
+.stat-item:last-child {
+    border-right: none;
+}
+
+.stat-icon {
+    font-size: 1.2rem;
+}
+
+.stat-value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+@media (max-width: 480px) {
+    .srt-segment-card {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .srt-seg-index {
+        width: auto;
+        padding: 2px 8px;
+        height: auto;
+        align-self: flex-start;
+    }
+
+    .transcription-stats {
+        flex-direction: column;
+    }
+
+    .stat-item {
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        width: 100%;
+        flex-direction: row;
+        justify-content: center;
+        gap: 10px;
+        padding: 10px 16px;
+    }
+
+    .stat-item:last-child {
+        border-bottom: none;
+    }
+}
+
+/* ============================================================
+   SRT Download Hero — "SRT Output Only" mode
+   ============================================================ */
+
+.srt-download-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    margin: 28px auto 8px;
+    padding: 28px 24px 24px;
+    max-width: 400px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(6, 182, 212, 0.06) 100%);
+    border: 1.5px solid rgba(16, 185, 129, 0.25);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 24px rgba(16, 185, 129, 0.08);
+    transition: box-shadow 0.3s ease;
+}
+
+.srt-download-hero:hover {
+    box-shadow: 0 6px 32px rgba(16, 185, 129, 0.16);
+}
+
+.srt-file-icon {
+    font-size: 2.8rem;
+    line-height: 1;
+    filter: drop-shadow(0 2px 8px rgba(16, 185, 129, 0.3));
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-5px); }
+}
+
+.srt-file-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    word-break: break-all;
+    text-align: center;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.srt-download-btn {
+    width: 100%;
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 14px 24px;
+    border-radius: var(--radius-md);
+    letter-spacing: 0.03em;
+}
+
+.btn-block {
+    width: 100%;
+    display: block;
+    text-align: center;
+}

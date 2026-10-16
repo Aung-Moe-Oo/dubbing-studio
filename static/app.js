@@ -92,10 +92,17 @@
         // Transcription Result
         transcriptionResultSection: document.getElementById('transcription-result-section'),
         transcriptionInfo: document.getElementById('transcription-info'),
-        transcriptionTextOutput: document.getElementById('transcription-text-output'),
-        transcriptionCharCount: document.getElementById('transcription-char-count'),
+        srtSegmentsView: document.getElementById('srt-segments-view'),
+        srtLoading: document.getElementById('srt-loading'),
+        srtRawOutput: document.getElementById('srt-raw-output'),
+        srtSegmentCount: document.getElementById('srt-segment-count'),
+        toggleRawBtn: document.getElementById('toggle-raw-btn'),
+        transcriptionStats: document.getElementById('transcription-stats'),
+        statDuration: document.getElementById('stat-duration'),
+        statSegments: document.getElementById('stat-segments'),
+        statChars: document.getElementById('stat-chars'),
         copyTranscriptionBtn: document.getElementById('copy-transcription-btn'),
-        downloadTranscriptionBtn: document.getElementById('download-transcription-btn'),
+        downloadSrtBtn: document.getElementById('download-srt-btn'),
         newTranscribeBtn: document.getElementById('new-transcribe-btn'),
 
         // Error
@@ -756,6 +763,22 @@
             state.eventSource.close();
             state.eventSource = null;
         }
+        // Reset transcription preview state
+        _transcriptionData = { srt: '', text: '', segments: [] };
+        _rawSrtVisible = false;
+        if (DOM.srtSegmentsView) {
+            DOM.srtSegmentsView.innerHTML = '';
+            DOM.srtSegmentsView.classList.remove('hidden');
+        }
+        if (DOM.srtRawOutput) {
+            DOM.srtRawOutput.value = '';
+            DOM.srtRawOutput.classList.add('hidden');
+        }
+        if (DOM.toggleRawBtn) {
+            DOM.toggleRawBtn.classList.remove('active');
+            DOM.toggleRawBtn.innerHTML = '<span>&lt;/&gt;</span> Raw SRT';
+        }
+        if (DOM.transcriptionStats) DOM.transcriptionStats.style.display = 'none';
         showUploadView();
     }
 
@@ -1000,6 +1023,31 @@
     // ========================================================================
     // Transcription Result
     // ========================================================================
+
+    // Internal state for transcription data
+    let _transcriptionData = { srt: '', text: '', segments: [] };
+    let _rawSrtVisible = false;
+
+    /** Convert SRT timestamp string to total seconds */
+    function srtTimeToSeconds(ts) {
+        // format: HH:MM:SS,mmm
+        try {
+            const [hms, ms] = ts.split(',');
+            const [h, m, s] = hms.split(':').map(Number);
+            return h * 3600 + m * 60 + s + (Number(ms) / 1000);
+        } catch (e) { return 0; }
+    }
+
+    /** Format seconds as m:ss or h:mm:ss */
+    function formatDuration(totalSec) {
+        totalSec = Math.round(totalSec);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        return `${m}:${String(s).padStart(2,'0')}`;
+    }
+
     async function showTranscriptionResult(jobId) {
         DOM.progressSection.classList.remove('active');
         DOM.downloadSection.classList.remove('active');
@@ -1011,61 +1059,191 @@
         }
 
         const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
-        DOM.transcriptionInfo.textContent = `Completed in ${formatTime(elapsed)}. Your Burmese audio has been transcribed.`;
+        DOM.transcriptionInfo.textContent = `Completed in ${formatTime(elapsed)}. Your Burmese SRT file is ready to download.`;
 
-        // Fetch transcription text
+        // Update SRT file label
+        const srtFileLabel = document.getElementById('srt-file-label');
+        if (srtFileLabel) {
+            srtFileLabel.textContent = `transcription_${jobId}.srt`;
+        }
+
         try {
             const res = await fetch(`/api/transcription/${jobId}`);
             const data = await res.json();
-            if (data.text) {
-                DOM.transcriptionTextOutput.value = data.text;
-                DOM.transcriptionCharCount.textContent = `${data.text.length} character${data.text.length !== 1 ? 's' : ''}`;
+
+            if (!res.ok || data.error) throw new Error(data.error || 'Failed to load transcription');
+
+            _transcriptionData = {
+                srt: data.srt || '',
+                text: data.text || '',
+                segments: data.segments || [],
+            };
+
+            // Populate hidden raw output for JS compat
+            if (DOM.srtRawOutput) DOM.srtRawOutput.value = _transcriptionData.srt;
+
+            // Stats
+            const segCount = _transcriptionData.segments.length;
+            if (DOM.srtSegmentCount) DOM.srtSegmentCount.textContent = `${segCount} segment${segCount !== 1 ? 's' : ''}`;
+            DOM.statSegments.textContent = segCount;
+            DOM.statChars.textContent = _transcriptionData.text.length.toLocaleString();
+
+            // Estimate duration from last segment
+            if (segCount > 0) {
+                const lastSeg = _transcriptionData.segments[segCount - 1];
+                let lastEnd = 0;
+                if (typeof lastSeg.end === 'number') {
+                    lastEnd = lastSeg.end;
+                } else if (lastSeg.end_ts) {
+                    lastEnd = srtTimeToSeconds(lastSeg.end_ts);
+                }
+                DOM.statDuration.textContent = formatDuration(lastEnd);
             } else {
-                DOM.transcriptionTextOutput.value = 'No transcription text available.';
-                DOM.transcriptionCharCount.textContent = '0 characters';
+                DOM.statDuration.textContent = '—';
             }
+
+            DOM.transcriptionStats.style.display = 'flex';
+
         } catch (err) {
-            DOM.transcriptionTextOutput.value = 'Failed to load transcription.';
-            showError('Failed to fetch transcription text');
+            showError('Failed to fetch transcription: ' + err.message);
         }
     }
 
-    // Copy to clipboard
+    /** Render the list of SRT segments as pretty cards */
+    function _renderSrtSegments(segments, rawSrt) {
+        DOM.srtSegmentsView.innerHTML = '';
+
+        if (!segments || segments.length === 0) {
+            // Fall back to raw display if no structured segments
+            if (rawSrt) {
+                DOM.srtSegmentsView.innerHTML = `<div class="srt-fallback-note">No structured segments available — showing raw SRT.</div>`;
+                DOM.srtRawOutput.classList.remove('hidden');
+                DOM.srtSegmentsView.classList.add('hidden');
+            } else {
+                DOM.srtSegmentsView.innerHTML = '<div class="srt-error">No transcription data.</div>';
+            }
+            return;
+        }
+
+        segments.forEach((seg) => {
+            // Build timestamp string
+            let startTs, endTs;
+            if (seg.start_ts && seg.end_ts) {
+                // Already formatted strings from disk parse
+                startTs = seg.start_ts;
+                endTs = seg.end_ts;
+            } else {
+                // Numeric seconds from live transcription
+                startTs = secondsToSrtTime(seg.start);
+                endTs = secondsToSrtTime(seg.end);
+            }
+
+            const card = document.createElement('div');
+            card.className = 'srt-segment-card';
+            card.innerHTML = `
+                <div class="srt-seg-index">${seg.index}</div>
+                <div class="srt-seg-body">
+                    <div class="srt-seg-timestamps">
+                        <span class="srt-ts-start">${startTs}</span>
+                        <span class="srt-ts-arrow">→</span>
+                        <span class="srt-ts-end">${endTs}</span>
+                    </div>
+                    <div class="srt-seg-text">${escapeHtml(seg.text)}</div>
+                </div>
+            `;
+            DOM.srtSegmentsView.appendChild(card);
+        });
+    }
+
+    /** Convert float seconds to SRT timestamp string HH:MM:SS,mmm */
+    function secondsToSrtTime(s) {
+        s = Math.max(0, s || 0);
+        const millis = Math.round((s % 1) * 1000);
+        const totalInt = Math.floor(s);
+        const sec = totalInt % 60;
+        const minute = Math.floor(totalInt / 60) % 60;
+        const hour = Math.floor(totalInt / 3600);
+        return `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:${String(sec).padStart(2,'0')},${String(millis).padStart(3,'0')}`;
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // Copy plain text to clipboard
     DOM.copyTranscriptionBtn.addEventListener('click', async () => {
-        const text = DOM.transcriptionTextOutput.value;
+        const text = _transcriptionData.text || DOM.srtRawOutput.value;
         if (!text) return;
 
         try {
             await navigator.clipboard.writeText(text);
             DOM.copyTranscriptionBtn.innerHTML = '✅ Copied!';
             setTimeout(() => {
-                DOM.copyTranscriptionBtn.innerHTML = '📋 Copy to Clipboard';
+                DOM.copyTranscriptionBtn.innerHTML = '📋 Copy Text';
             }, 2000);
         } catch (err) {
-            // Fallback: select text
-            DOM.transcriptionTextOutput.select();
+            // Fallback for older browsers
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
             document.execCommand('copy');
+            document.body.removeChild(ta);
             DOM.copyTranscriptionBtn.innerHTML = '✅ Copied!';
             setTimeout(() => {
-                DOM.copyTranscriptionBtn.innerHTML = '📋 Copy to Clipboard';
+                DOM.copyTranscriptionBtn.innerHTML = '📋 Copy Text';
             }, 2000);
         }
     });
 
-    // Download as .txt
-    DOM.downloadTranscriptionBtn.addEventListener('click', () => {
-        const text = DOM.transcriptionTextOutput.value;
-        if (!text) return;
+    // Download as .srt — prefer server file, fall back to client-side blob
+    DOM.downloadSrtBtn.addEventListener('click', async () => {
+        const jobId = state.currentJobId;
+        const srtContent = _transcriptionData.srt;
+        if (!srtContent && !jobId) return;
 
-        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `transcription_${state.currentJobId || 'output'}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        // Try server download first
+        if (jobId) {
+            try {
+                const res = await fetch(`/api/transcription/${jobId}/download`);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `transcription_${jobId}.srt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    return;
+                }
+            } catch (e) { /* fall through to client-side */ }
+        }
+
+        // Client-side fallback
+        if (srtContent) {
+            const blob = new Blob([srtContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `transcription_${jobId || 'output'}.srt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    });
+
+    // Toggle raw SRT view
+    DOM.toggleRawBtn.addEventListener('click', () => {
+        _rawSrtVisible = !_rawSrtVisible;
+        DOM.srtSegmentsView.classList.toggle('hidden', _rawSrtVisible);
+        DOM.srtRawOutput.classList.toggle('hidden', !_rawSrtVisible);
+        DOM.toggleRawBtn.classList.toggle('active', _rawSrtVisible);
+        DOM.toggleRawBtn.innerHTML = _rawSrtVisible
+            ? '<span>🎬</span> Preview'
+            : '<span>&lt;/&gt;</span> Raw SRT';
     });
 
     // Transcribe another

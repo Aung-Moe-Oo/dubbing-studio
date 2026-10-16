@@ -1,5 +1,5 @@
 flask>=3.0
 faster-whisper>=1.0
-edge-tts>=6.1
+edge-tts>=7.3.1
 deep-translator>=1.11
 pydub>=0.25

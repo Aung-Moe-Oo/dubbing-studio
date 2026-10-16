@@ -274,29 +274,53 @@
         <!-- Transcription Result Section -->
         <section class="transcription-result-section" id="transcription-result-section">
             <div class="card">
-                <div class="download-icon">📝</div>
-                <h2 class="download-title">Transcription Complete!</h2>
+                <div class="download-icon">📄</div>
+                <h2 class="download-title">SRT File Ready!</h2>
                 <p class="download-subtitle" id="transcription-info">
-                    Your Burmese audio has been transcribed successfully.
+                    Your Burmese audio has been transcribed to SRT.
                 </p>
 
-                <!-- Transcription Text Display -->
-                <div class="transcription-text-container">
-                    <div class="transcription-text-header">
-                        <span class="transcription-label">📜 Transcribed Text</span>
-                        <span class="transcription-char-count" id="transcription-char-count">0 characters</span>
+                <!-- Stats bar -->
+                <div class="transcription-stats" id="transcription-stats" style="display:none;">
+                    <div class="stat-item">
+                        <span class="stat-icon">⏱️</span>
+                        <span class="stat-value" id="stat-duration">—</span>
+                        <span class="stat-label">Duration</span>
                     </div>
-                    <textarea class="transcription-text-output" id="transcription-text-output" readonly
-                        placeholder="Transcription will appear here..."></textarea>
+                    <div class="stat-item">
+                        <span class="stat-icon">💬</span>
+                        <span class="stat-value" id="stat-segments">—</span>
+                        <span class="stat-label">Segments</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">📝</span>
+                        <span class="stat-value" id="stat-chars">—</span>
+                        <span class="stat-label">Characters</span>
+                    </div>
                 </div>
 
-                <div class="actions-bar" style="margin-top: 20px; flex-wrap: wrap;">
-                    <button class="btn btn-secondary" id="copy-transcription-btn">
-                        📋 Copy to Clipboard
+                <!-- Hidden elements retained for JS compatibility -->
+                <div id="srt-preview-container" style="display:none;">
+                    <span id="srt-segment-count"></span>
+                    <button id="toggle-raw-btn" style="display:none;"></button>
+                    <div id="srt-segments-view">
+                        <div id="srt-loading"></div>
+                    </div>
+                    <textarea id="srt-raw-output" readonly style="display:none;"></textarea>
+                </div>
+
+                <!-- Primary action: download SRT -->
+                <div class="srt-download-hero">
+                    <div class="srt-file-icon">🗒️</div>
+                    <div class="srt-file-label" id="srt-file-label">transcription.srt</div>
+                    <button class="btn btn-success btn-block srt-download-btn" id="download-srt-btn">
+                        ⬇️ Download SRT File
                     </button>
-                    <button class="btn btn-success" id="download-transcription-btn">
-                        ⬇️ Download as .txt
-                    </button>
+                </div>
+
+                <div class="actions-bar" style="margin-top: 16px; flex-wrap: wrap;">
+                    <!-- hidden copy btn kept for JS compat -->
+                    <button class="btn btn-secondary" id="copy-transcription-btn" style="display:none;">📋 Copy Text</button>
                     <button class="btn btn-primary" id="new-transcribe-btn">
                         🔄 Transcribe Another
                     </button>
